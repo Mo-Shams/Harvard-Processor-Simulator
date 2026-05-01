@@ -1,0 +1,11 @@
+# Compiled output
+obj/
+simulator
+
+# OS clutter
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
