@@ -1,0 +1,21 @@
+# Worst-case test: triggers both a STALL (load-use hazard) and a FLUSH (branch taken)
+#
+# Expected events:
+#  - Cycle 5: LW R3 0 is in EX, ADD R3 R2 is in ID → STALL (load-use hazard)
+#  - Cycle 8: BEQZ R1 1 executes, R1==0 → FLUSH, jump to instruction 6 (LDI R5 7)
+#  - LDI R4 99 (instruction 5) is NEVER executed (flushed)
+#
+# Expected final registers:
+#  R1 = 0   (LDI R1 0)
+#  R2 = 5   (LDI R2 5)
+#  R3 = 5   (LW loads 0, then ADD R3 R2 = 0+5 = 5)
+#  R4 = 0   (LDI R4 99 was flushed — never ran)
+#  R5 = 7   (LDI R5 7 is the branch target)
+#
+LDI R1 0      ; [0] R1 = 0  (used as branch condition)
+LDI R2 5      ; [1] R2 = 5
+LW R3 0       ; [2] R3 = DataMem[R3 + 0] = DataMem[0] = 0
+ADD R3 R2     ; [3] << STALL here: R3 was just loaded by LW above
+BEQZ R1 1     ; [4] << FLUSH here: R1==0, target = 4+1+1 = 6
+LDI R4 31     ; [5] << FLUSHED - never executes
+LDI R5 7      ; [6] branch target: R5 = 7

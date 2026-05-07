@@ -25,6 +25,6 @@
  *   - Full instruction memory (all 1024 words)
  *   - Full data memory (all 2048 bytes)
  */
-/* void printer_final(void); */
+void printer_final(void);
 
 #endif /* PRINTER_H */

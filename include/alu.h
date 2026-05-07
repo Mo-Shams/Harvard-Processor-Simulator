@@ -25,6 +25,5 @@
  * Returns:
  *   The 8-bit result of the ALU operation (cast to int8_t).
  */
-/* int8_t alu_execute(Opcode opcode, int8_t r1_val, int8_t r2_val, int8_t imm); */
-
-#endif /* ALU_H */
+int8_t alu_execute(Opcode opcode, int8_t r1_val, int8_t r2_val, int8_t imm);
+#endif

@@ -5,13 +5,14 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include "../include/types.h"
 #include "../include/memory.h"
 #include "../include/registers.h"
 #include "../include/parser.h"
 #include "../include/decoder.h"
+#include "../include/pipeline.h"
+#include "../include/printer.h"
 
 int main(int argc, char *argv[]) {
     /* Check command-line arguments */
@@ -49,10 +50,11 @@ int main(int argc, char *argv[]) {
         printf("\n");
     }
 
-    printf("\n--- Pipeline simulation not yet implemented ---\n");
-
-    /* TODO: pipeline_run(); */
-    /* TODO: printer_final(); */
+    /* Run the pipeline simulation */
+    pipeline_run();
+    
+    /* Print the final state */
+    printer_final();
 
     return 0;
 }

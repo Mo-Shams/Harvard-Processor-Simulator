@@ -2,7 +2,6 @@
  * pipeline.h — Pipeline simulation interface
  *
  * Simulates the 3-stage pipeline (IF → ID → EX) cycle by cycle.
- * (Implementation will be done in a future stage)
  */
 
 #ifndef PIPELINE_H
@@ -15,6 +14,6 @@
  * Simulates cycles until the pipeline is fully drained
  * and no more instructions remain to fetch.
  */
-/* void pipeline_run(void); */
+void pipeline_run(void);
 
 #endif /* PIPELINE_H */
