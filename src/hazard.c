@@ -8,6 +8,8 @@
  * the loaded value isn't available for forwarding until after EX.
  */
 
+#include <stddef.h>
+
 #include "../include/hazard.h"
 #include "../include/decoder.h"
 

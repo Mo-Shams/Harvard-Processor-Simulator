@@ -8,6 +8,12 @@
  *   - Normal instruction flow
  *   - Data hazards: forwarding (implicit via reverse order) + LW stalls
  *   - Control hazards: flush on taken BEQZ or JR
+ *
+ * Prints per-cycle:
+ *   - Cycle number
+ *   - Which instruction is in each stage with input/output values
+ *   - Register changes (which register, new value, which stage)
+ *   - Data memory changes (which address, new value, which stage)
  */
 
 #include "../include/pipeline.h"
@@ -18,11 +24,75 @@
 #include "../include/registers.h"
 #include "../include/types.h"
 #include <stdio.h>
+#include <string.h>
 
 /* ─── Pipeline Registers ────────────────────────────── */
 
 static IF_ID_Reg if_id;
 static ID_EX_Reg id_ex;
+
+/* ─── Snapshot arrays for tracking register/memory changes ─── */
+
+static int8_t   gpr_snapshot[NUM_GPRS];
+static int8_t   dmem_snapshot[DATA_MEM_SIZE];
+static uint8_t  sreg_snapshot;
+static uint16_t pc_snapshot;
+
+/*
+ * Take a snapshot of all registers and data memory
+ * so we can diff after each cycle to detect changes.
+ */
+static void take_snapshot(void) {
+  const int8_t *gprs = gpr_get_array();
+  memcpy(gpr_snapshot, gprs, sizeof(gpr_snapshot));
+
+  const int8_t *dmem = data_mem_get_array();
+  memcpy(dmem_snapshot, dmem, sizeof(dmem_snapshot));
+
+  sreg_snapshot = sreg_read();
+  pc_snapshot = pc_read();
+}
+
+/*
+ * Print any register/memory changes that occurred since the snapshot.
+ */
+static void print_changes(const char *stage_name) {
+  const int8_t *gprs = gpr_get_array();
+  const int8_t *dmem = data_mem_get_array();
+
+  /* Check GPR changes */
+  for (int i = 0; i < NUM_GPRS; i++) {
+    if (gprs[i] != gpr_snapshot[i]) {
+      printf("    [%s] R%d changed to %d\n", stage_name, i, gprs[i]);
+    }
+  }
+
+  /* Check SREG changes */
+  uint8_t current_sreg = sreg_read();
+  if (current_sreg != sreg_snapshot) {
+    printf("    [%s] SREG changed to 0x%02X (C=%d V=%d N=%d S=%d Z=%d)\n",
+           stage_name,
+           current_sreg,
+           sreg_get_flag(SREG_C_BIT),
+           sreg_get_flag(SREG_V_BIT),
+           sreg_get_flag(SREG_N_BIT),
+           sreg_get_flag(SREG_S_BIT),
+           sreg_get_flag(SREG_Z_BIT));
+  }
+
+  /* Check PC changes */
+  uint16_t current_pc = pc_read();
+  if (current_pc != pc_snapshot) {
+    printf("    [%s] PC changed to %d\n", stage_name, current_pc);
+  }
+
+  /* Check data memory changes */
+  for (int i = 0; i < DATA_MEM_SIZE; i++) {
+    if (dmem[i] != dmem_snapshot[i]) {
+      printf("    [%s] DataMem[%d] changed to %d\n", stage_name, i, dmem[i]);
+    }
+  }
+}
 
 /* ─── Stage: Execute (EX) ───────────────────────────── */
 /*
@@ -141,21 +211,15 @@ static int stage_fetch(void) {
   return 0;
 }
 
-/* ─── Print helpers for cycle output ────────────────── */
+/* ─── Print helpers for instruction display ─────────── */
 
-static void print_stage_instr(const char *stage, int valid, uint16_t pc,
-                              uint16_t raw) {
-  if (!valid) {
-    printf("  %s: [bubble]\n", stage);
-    return;
-  }
+static void print_instr_name(uint16_t raw) {
   DecodedInstr d = decode_instruction(raw);
-  printf("  %s: [PC=%d] %s R%d ", stage, pc, OPCODE_NAMES[d.opcode], d.r1);
+  printf("%s R%d ", OPCODE_NAMES[d.opcode], d.r1);
   if (d.format == FMT_R_TYPE)
     printf("R%d", d.r2);
   else
     printf("%d", d.imm);
-  printf("\n");
 }
 
 /* ─── Main Pipeline Loop ────────────────────────────── */
@@ -168,79 +232,183 @@ void pipeline_run(void) {
   int cycle = 1;
   int fetching_done = 0;
 
-  printf("\n--- Pipeline Simulation ---\n");
+  printf("\n==================== PIPELINE SIMULATION ====================\n");
 
   while (1) {
-    printf("\n=== Cycle %d ===\n", cycle);
+    printf("\n================ Cycle %d ================\n", cycle);
+
+    /* Save snapshots of pipeline registers for printing (before they change) */
+    IF_ID_Reg if_id_snap = if_id;
+    ID_EX_Reg id_ex_snap = id_ex;
 
     /* Save EX instruction info before it executes (for hazard detection) */
     int ex_was_valid = id_ex.valid;
     Opcode ex_opcode = id_ex.opcode;
     uint8_t ex_r1 = id_ex.r1;
 
-    /* Also save if_id and id_ex for printing (before they get overwritten) */
-    IF_ID_Reg if_id_snap = if_id;
-    ID_EX_Reg id_ex_snap = id_ex;
-
-    /* ── 1. EXECUTE (EX) ── */
+    /* ═══════════════════════════════════════════════════════════════
+     * STAGE 1: EXECUTE (EX) — runs first to avoid pipeline corruption
+     * ═══════════════════════════════════════════════════════════════ */
+    take_snapshot();
     int flush = stage_execute();
 
-    /* ── 2. HAZARD DETECTION ── */
+    /* Print EX stage info */
+    printf("\n  [EX Stage]\n");
+    if (id_ex_snap.valid) {
+      printf("    Instruction: [PC=%d] ", id_ex_snap.pc);
+      print_instr_name(instr_mem_read(id_ex_snap.pc));
+      printf("\n");
+
+      /* Print input values */
+      DecodedInstr d_ex = decode_instruction(instr_mem_read(id_ex_snap.pc));
+      printf("    Inputs: R%d_val=%d", d_ex.r1, id_ex_snap.r1_val);
+      if (d_ex.format == FMT_R_TYPE) {
+        printf(", R%d_val=%d", d_ex.r2, id_ex_snap.r2_val);
+      } else {
+        printf(", IMM=%d", id_ex_snap.imm);
+      }
+      printf("\n");
+
+      /* Print output / action */
+      switch (id_ex_snap.opcode) {
+      case OP_ADD:
+      case OP_SUB:
+      case OP_MUL:
+      case OP_AND:
+      case OP_OR:
+      case OP_SAL:
+      case OP_SAR:
+        printf("    Output: R%d = %d\n", id_ex_snap.r1,
+               gpr_read(id_ex_snap.r1));
+        break;
+      case OP_LDI:
+        printf("    Output: R%d = %d (loaded immediate)\n", id_ex_snap.r1,
+               gpr_read(id_ex_snap.r1));
+        break;
+      case OP_LW: {
+        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.r1_val +
+                                   (int16_t)id_ex_snap.imm);
+        printf("    Output: R%d = DataMem[%d] = %d\n", id_ex_snap.r1, addr,
+               gpr_read(id_ex_snap.r1));
+        break;
+      }
+      case OP_SW: {
+        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.r1_val +
+                                   (int16_t)id_ex_snap.imm);
+        printf("    Output: DataMem[%d] = %d\n", addr, id_ex_snap.r1_val);
+        break;
+      }
+      case OP_BEQZ:
+        if (flush) {
+          uint16_t target =
+              (uint16_t)(id_ex_snap.pc + 1 + id_ex_snap.imm);
+          printf("    Output: Branch TAKEN → PC = %d + 1 + %d = %d\n",
+                 id_ex_snap.pc, id_ex_snap.imm, target);
+        } else {
+          printf("    Output: Branch NOT taken (R%d = %d != 0)\n",
+                 id_ex_snap.r1, id_ex_snap.r1_val);
+        }
+        break;
+      case OP_JR: {
+        uint16_t target = (uint16_t)(((uint8_t)id_ex_snap.r1_val << 8) |
+                                     ((uint8_t)id_ex_snap.r2_val));
+        printf("    Output: Jump to PC = R%d||R%d = %d\n", id_ex_snap.r1,
+               id_ex_snap.r2, target);
+        break;
+      }
+      default:
+        break;
+      }
+
+      /* Print register/memory changes from EX */
+      print_changes("EX");
+    } else {
+      printf("    [bubble]\n");
+    }
+
+    /* Update snapshot after EX changes */
+    take_snapshot();
+
+    /* ═══════════════════════════════════════════════════════════════
+     * HAZARD DETECTION
+     * ═══════════════════════════════════════════════════════════════ */
     int stall = 0;
     if (!flush) {
       stall = hazard_check_stall(ex_was_valid, ex_opcode, ex_r1, &if_id);
     }
 
-    /* ── 3. DECODE (ID) ── */
+    /* ═══════════════════════════════════════════════════════════════
+     * STAGE 2: DECODE (ID)
+     * ═══════════════════════════════════════════════════════════════ */
+    printf("\n  [ID Stage]\n");
     if (flush) {
       id_ex.valid = 0; /* flush: discard the instruction in ID */
+      if (if_id_snap.valid) {
+        printf("    Instruction: [PC=%d] ", if_id_snap.pc);
+        print_instr_name(if_id_snap.instruction);
+        printf(" → FLUSHED\n");
+      } else {
+        printf("    [bubble]\n");
+      }
     } else if (stall) {
       id_ex.valid = 0; /* stall: insert bubble, keep if_id for next cycle */
-      printf("  ** STALL (load-use hazard) **\n");
+      printf("    Instruction: [PC=%d] ", if_id_snap.pc);
+      print_instr_name(if_id_snap.instruction);
+      printf(" → STALLED (load-use hazard)\n");
     } else {
-      stage_decode();
+      if (if_id_snap.valid) {
+        stage_decode();
+        printf("    Instruction: [PC=%d] ", if_id_snap.pc);
+        print_instr_name(if_id_snap.instruction);
+        printf("\n");
+        /* Print decoded values (outputs of decode stage) */
+        printf("    Decoded: opcode=%s, R1=R%d(val=%d)",
+               OPCODE_NAMES[id_ex.opcode], id_ex.r1, id_ex.r1_val);
+        DecodedInstr d_id = decode_instruction(if_id_snap.instruction);
+        if (d_id.format == FMT_R_TYPE) {
+          printf(", R2=R%d(val=%d)", id_ex.r2, id_ex.r2_val);
+        } else {
+          printf(", IMM=%d", id_ex.imm);
+        }
+        printf("\n");
+      } else {
+        id_ex.valid = 0;
+        printf("    [bubble]\n");
+      }
     }
 
-    /* ── 4. FETCH (IF) ── */
+    /* Update snapshot after ID changes */
+    take_snapshot();
+
+    /* ═══════════════════════════════════════════════════════════════
+     * STAGE 3: FETCH (IF)
+     * ═══════════════════════════════════════════════════════════════ */
+    printf("\n  [IF Stage]\n");
     if (flush) {
       if_id.valid = 0; /* flush: discard, PC already set to target */
       fetching_done = 0; /* target might be valid, re-check next cycle */
-      printf("  ** FLUSH (branch/jump taken) **\n");
+      printf("    → FLUSHED (branch/jump taken)\n");
     } else if (stall) {
       /* Don't fetch — keep if_id and PC unchanged */
+      printf("    Instruction: [PC=%d] ", if_id.pc);
+      print_instr_name(if_id.instruction);
+      printf(" → STALLED (waiting)\n");
     } else {
       int done = stage_fetch();
-      if (done)
+      if (done) {
         fetching_done = 1;
+        printf("    [no more instructions to fetch]\n");
+      } else {
+        printf("    Fetched: [PC=%d] ", if_id.pc);
+        print_instr_name(if_id.instruction);
+        printf(" (raw=0x%04X)\n", if_id.instruction);
+        /* Print PC change from fetch */
+        print_changes("IF");
+      }
     }
 
-    /* ── Print pipeline state (using snapshots from before execution) ── */
-    /* EX shows what was in id_ex (now executed) */
-    if (id_ex_snap.valid) {
-      DecodedInstr d = decode_instruction(
-          instr_mem_read(id_ex_snap.pc));
-      printf("  EX: [PC=%d] %s R%d ", id_ex_snap.pc,
-             OPCODE_NAMES[d.opcode], d.r1);
-      if (d.format == FMT_R_TYPE)
-        printf("R%d", d.r2);
-      else
-        printf("%d", d.imm);
-      printf("\n");
-    } else {
-      printf("  EX: [bubble]\n");
-    }
-    /* ID shows what was in if_id (now decoded or flushed) */
-    print_stage_instr("ID", if_id_snap.valid, if_id_snap.pc,
-                      if_id_snap.instruction);
-    /* IF shows what was just fetched (current if_id, unless stall/flush) */
-    if (!flush && !stall && if_id.valid) {
-      print_stage_instr("IF", if_id.valid, if_id.pc, if_id.instruction);
-    } else if (stall) {
-      print_stage_instr("IF", if_id_snap.valid, if_id_snap.pc,
-                        if_id_snap.instruction);
-    } else {
-      printf("  IF: [bubble]\n");
-    }
+    /* Update snapshot for next cycle */
+    take_snapshot();
 
     cycle++;
 
@@ -249,5 +417,6 @@ void pipeline_run(void) {
       break;
   }
 
-  printf("\n--- Pipeline complete: %d cycles ---\n", cycle - 1);
+  printf("\n================ Pipeline complete: %d cycles ================\n",
+         cycle - 1);
 }

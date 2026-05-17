@@ -113,8 +113,10 @@ typedef struct {
 
 /* ─── Opcode Name Lookup (for printing) ─────────────── */
 
-static const char *OPCODE_NAMES[]
-    __attribute__((unused)) = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
-                               "OR",  "JR",  "SAL", "SAR", "LW",   "SW"};
+__attribute__((unused))
+static const char *OPCODE_NAMES[] = {
+    "ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
+    "OR",  "JR",  "SAL", "SAR", "LW",   "SW"
+};
 
 #endif /* TYPES_H */
