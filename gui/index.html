@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Harvard Pipeline Simulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>
+        <h1>Harvard Simulator</h1>
+        <span class="badge">Pkg 4</span>
+      </div>
+      <div class="toolbar">
+        <button id="btn-reset" class="tbtn" title="Reset">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+        <button id="btn-play" class="tbtn primary" title="Play/Pause">
+          <svg class="play-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <svg class="pause-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+        <button id="btn-step" class="tbtn" title="Step Forward" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        </button>
+        <div class="sep"></div>
+        <span class="speed-label">Speed</span>
+        <input type="range" id="speed-slider" min="100" max="2000" value="800" step="100">
+      </div>
+      <div class="cycle-box" id="cycle-display">Cycle 0</div>
+    </header>
+
+    <div class="main">
+      <!-- CODE EDITOR -->
+      <section class="panel code-panel">
+        <div class="phead"><h2>Assembly Code</h2><button id="btn-assemble" class="tbtn primary small">Parse & Load</button></div>
+        <div class="editor-wrap">
+          <div class="line-numbers" id="line-numbers">1</div>
+          <textarea id="code-editor" spellcheck="false">LDI R1 5
+LDI R2 3
+ADD R1 R2
+SUB R1 R2
+MUL R1 R2
+AND R1 R2
+OR R1 R2
+SAL R1 2
+SAR R1 1
+SW R1 0
+LW R3 0</textarea>
+        </div>
+        <div id="parse-errors" class="err-box hidden"></div>
+      </section>
+
+      <!-- PIPELINE -->
+      <section class="panel pipe-panel">
+        <div class="phead"><h2>Pipeline</h2></div>
+        <div class="stages-row">
+          <div class="stage-col">
+            <div class="stage-label if-label">IF</div>
+            <div class="stage-card bubble" id="card-if"><div class="iname">Bubble</div><div class="iinput"></div><div class="idetail">—</div></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage-col">
+            <div class="stage-label id-label">ID</div>
+            <div class="stage-card bubble" id="card-id"><div class="iname">Bubble</div><div class="iinput"></div><div class="idetail">—</div></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stage-col">
+            <div class="stage-label ex-label">EX</div>
+            <div class="stage-card bubble" id="card-ex"><div class="iname">Bubble</div><div class="iinput"></div><div class="idetail">—</div></div>
+          </div>
+        </div>
+        <div class="console-section">
+          <h3>Console Output</h3>
+          <div class="console-log" id="console-log"><div class="log-line muted">Ready.</div></div>
+        </div>
+      </section>
+
+      <!-- STATE -->
+      <section class="panel state-panel">
+        <div class="phead"><h2>State</h2></div>
+        <div class="state-inner">
+          <div class="pc-sreg">
+            <div class="infobox"><div class="lbl">PC</div><div class="bigval" id="val-pc">0</div></div>
+            <div class="infobox">
+              <div class="lbl">SREG</div>
+              <div class="flags">
+                <span class="flag" id="flag-c">C</span><span class="flag" id="flag-v">V</span>
+                <span class="flag" id="flag-n">N</span><span class="flag" id="flag-s">S</span><span class="flag" id="flag-z">Z</span>
+              </div>
+            </div>
+          </div>
+          <h3>Registers</h3>
+          <div class="gpr-grid" id="gpr-grid"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- MEMORY -->
+    <footer class="panel mem-panel">
+      <div class="phead">
+        <div class="mem-tabs">
+          <button class="mem-tab active" id="tab-dmem">Data Memory</button>
+          <button class="mem-tab" id="tab-imem">Instruction Memory</button>
+        </div>
+      </div>
+      <div class="mem-content">
+        <div class="memory-grid" id="dmem-grid"><div class="muted" style="padding:0.8rem">No data written yet</div></div>
+        <div class="memory-grid hidden" id="imem-grid"><div class="muted" style="padding:0.8rem">No program loaded</div></div>
+      </div>
+    </footer>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
