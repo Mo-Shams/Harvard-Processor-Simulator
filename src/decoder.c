@@ -31,8 +31,8 @@ InstrFormat get_format(Opcode opcode) {
         case OP_BEQZ:
         case OP_SAL:
         case OP_SAR:
-        case OP_LW:
-        case OP_SW:
+        case OP_LB:
+        case OP_SB:
             return FMT_I_TYPE;
 
         default:

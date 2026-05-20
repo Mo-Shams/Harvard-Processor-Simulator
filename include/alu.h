@@ -13,7 +13,7 @@
 /*
  * Execute an ALU operation based on the decoded instruction fields.
  * Handles: ADD, SUB, MUL, AND, OR, SAL, SAR, LDI.
- * Also handles memory addressing for LW/SW, branch evaluation for BEQZ,
+ * Also handles memory addressing for LB/SB, branch evaluation for BEQZ,
  * and jump address computation for JR.
  *
  * Parameters:

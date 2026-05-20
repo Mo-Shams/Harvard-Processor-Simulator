@@ -1,0 +1,11 @@
+[
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/main.c",      "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/main.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/parser.c",    "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/parser.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/memory.c",    "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/memory.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/registers.c", "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/registers.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/decoder.c",   "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/decoder.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/alu.c",       "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/alu.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/hazard.c",    "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/hazard.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/pipeline.c",  "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/pipeline.c" },
+  { "directory": "c:/repos/Harvard-Processor-Simulator", "file": "src/printer.c",   "command": "gcc -Wall -Wextra -std=c11 -Iinclude -c src/printer.c" }
+]

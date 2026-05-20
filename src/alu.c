@@ -87,7 +87,7 @@ static void update_flags(Opcode opcode, int8_t r1_val, int8_t r2_val,
     break;
 
   default:
-    /* LDI, BEQZ, JR, LW, SW — do NOT update any flags */
+    /* LDI, BEQZ, JR, LB, SB — do NOT update any flags */
     break;
   }
 }
@@ -143,10 +143,10 @@ int8_t alu_execute(Opcode opcode, int8_t r1_val, int8_t r2_val, int8_t imm) {
     result = (int8_t)(r1_val >> imm);
     break;
 
-  case OP_LW:
-  case OP_SW:
-    /* Compute effective memory address: R1 + sign_extended(IMM) */
-    result = (int8_t)(r1_val + imm);
+  case OP_LB:
+  case OP_SB:
+    /* Memory address is just the sign-extended immediate */
+    result = imm;
     break;
 
   default:

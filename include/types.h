@@ -55,8 +55,8 @@ typedef enum {
   OP_JR = 7,
   OP_SAL = 8,
   OP_SAR = 9,
-  OP_LW = 10,
-  OP_SW = 11
+  OP_LB = 10,
+  OP_SB = 11
 } Opcode;
 
 /* ─── Instruction Format ────────────────────────────── */
@@ -111,12 +111,6 @@ typedef struct {
   int valid;     /* 1 = contains a real instruction, 0 = bubble   */
 } ID_EX_Reg;
 
-/* ─── Opcode Name Lookup (for printing) ─────────────── */
-
-__attribute__((unused))
-static const char *OPCODE_NAMES[] = {
-    "ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
-    "OR",  "JR",  "SAL", "SAR", "LW",   "SW"
-};
+extern const char *OPCODE_NAMES[];
 
 #endif /* TYPES_H */

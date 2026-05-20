@@ -85,17 +85,17 @@ export class PipelineEngine {
         output_text = `R${this.id_ex.r1} = ${result} (loaded imm)`;
         break;
 
-      case Opcode.LW:
-        addr = (this.id_ex.r1_val + this.id_ex.imm) & 0xFFFF; // unsigned 16-bit
+      case Opcode.LB:
+        addr = this.id_ex.imm & 0xFFFF;
         if (addr >= DATA_MEM_SIZE) addr = 0; // Prevent out of bounds
         result = data_mem_read(addr);
         gpr_write(this.id_ex.r1, result);
-        alu_execute(Opcode.LW, this.id_ex.r1_val, this.id_ex.r2_val, this.id_ex.imm);
+        alu_execute(Opcode.LB, this.id_ex.r1_val, this.id_ex.r2_val, this.id_ex.imm);
         output_text = `R${this.id_ex.r1} = DataMem[${addr}] = ${result}`;
         break;
 
-      case Opcode.SW:
-        addr = (this.id_ex.r1_val + this.id_ex.imm) & 0xFFFF;
+      case Opcode.SB:
+        addr = this.id_ex.imm & 0xFFFF;
         if (addr >= DATA_MEM_SIZE) addr = 0;
         data_mem_write(addr, this.id_ex.r1_val);
         output_text = `DataMem[${addr}] = ${this.id_ex.r1_val}`;

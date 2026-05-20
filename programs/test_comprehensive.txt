@@ -1,0 +1,74 @@
+# ================================================================
+# Comprehensive Test — All 12 instructions + hazard scenarios
+# ================================================================
+#
+# Tests: ADD, SUB, MUL, LDI, BEQZ, AND, OR, JR, SAL, SAR, LB, SB
+#        + BEQZ flush + BEQZ not taken + SB/LB memory round-trip
+#        + implicit forwarding (back-to-back dependent instructions)
+#
+# Instruction semantics (Package 4):
+#   R-type: OP R1 R2  → R1 = R1 op R2
+#   I-type: OP R1 IMM → R1 = R1 op IMM  (or special like LB/SB/BEQZ)
+#
+# 3-stage pipeline (IF→ID→EX), no stalls, flushes on taken branches
+# ────────────────────────────────────────────
+#
+# Expected final register values:
+#   R1  = 10   (LDI R1 10)
+#   R2  = 3    (LDI R2 3)
+#   R3  = 13   (LDI R3 10, then ADD R3 R2 → 10+3=13)
+#   R4  = 7    (LDI R4 10, then SUB R4 R2 → 10-3=7)
+#   R5  = 30   (LDI R5 10, then MUL R5 R2 → 10*3=30)
+#   R6  = 2    (LDI R6 10, then AND R6 R2 → 10&3=2)
+#   R7  = 11   (LDI R7 10, then OR R7 R2 → 10|3=11)
+#   R8  = 40   (LDI R8 10, then SAL R8 2 → 10<<2=40)
+#   R9  = 5    (LDI R9 10, then SAR R9 1 → 10>>1=5)
+#   R10 = 0    (stays 0: BEQZ R10 branches, LDI R10 99 is flushed)
+#   R11 = 30   (LB R11 5 → loads DataMem[5]=30 that was stored by SB)
+#   R12 = 0    (LDI R12 1 after BEQZ is flushed — never executes)
+#   DataMem[5] = 30  (SB R5 5 stores R5=30 at address 5)
+#
+# SREG after final instruction (LB does not update flags):
+#   Last flag-updating instruction: SAR R9 1 → result=5
+#   N=0, Z=0 (result is 5, positive and non-zero)
+# ────────────────────────────────────────────
+
+# ── Phase 1: Setup base values ──
+LDI R1 10       ; [0]  R1 = 10
+LDI R2 3        ; [1]  R2 = 3
+
+# ── Phase 2: Arithmetic (tests forwarding: each depends on R1/R2) ──
+LDI R3 10       ; [2]  R3 = 10
+ADD R3 R2       ; [3]  R3 = 10 + 3 = 13  (forwarded R3 from prev cycle)
+LDI R4 10       ; [4]  R4 = 10
+SUB R4 R2       ; [5]  R4 = 10 - 3 = 7
+LDI R5 10       ; [6]  R5 = 10
+MUL R5 R2       ; [7]  R5 = 10 * 3 = 30
+
+# ── Phase 3: Logic ──
+LDI R6 10       ; [8]  R6 = 10  (binary: 00001010)
+AND R6 R2       ; [9]  R6 = 10 & 3 = 2   (00001010 & 00000011 = 00000010)
+LDI R7 10       ; [10] R7 = 10
+OR R7 R2        ; [11] R7 = 10 | 3 = 11  (00001010 | 00000011 = 00001011)
+
+# ── Phase 4: Shifts ──
+LDI R8 10       ; [12] R8 = 10
+SAL R8 2        ; [13] R8 = 10 << 2 = 40
+LDI R9 10       ; [14] R9 = 10
+SAR R9 1        ; [15] R9 = 10 >> 1 = 5
+
+# ── Phase 5: Store Byte + Load Byte (memory round-trip) ──
+SB R5 5         ; [16] DataMem[5] = R5 = 30
+LB R11 5        ; [17] R11 = DataMem[5] = 30  (verifies SB worked)
+
+# ── Phase 6: BEQZ taken (flush test) ──
+; R10 is 0 (never written), so BEQZ R10 will branch
+BEQZ R10 1      ; [18] R10==0 → branch to PC=18+1+1=20, FLUSH next instr
+LDI R12 1       ; [19] << FLUSHED — R12 stays 0
+
+# ── Phase 7: Branch target (proves flush worked) ──
+LDI R10 0       ; [20] branch lands here, R10 = 0 (confirms we skipped [19])
+
+# ── Phase 8: BEQZ not taken ──
+BEQZ R1 1       ; [21] R1=10, not zero → branch NOT taken, continue normally
+LDI R20 7       ; [22] This DOES execute (branch was not taken), R20 = 7

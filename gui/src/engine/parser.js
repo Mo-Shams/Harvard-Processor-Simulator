@@ -36,8 +36,8 @@ function is_i_type(opcode) {
     case Opcode.BEQZ:
     case Opcode.SAL:
     case Opcode.SAR:
-    case Opcode.LW:
-    case Opcode.SW:
+    case Opcode.LB:
+    case Opcode.SB:
       return true;
     default:
       return false;

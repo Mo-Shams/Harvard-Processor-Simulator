@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 /* ─── Maximum line length for reading assembly files ── */
 
 #define MAX_LINE_LEN 256
@@ -38,7 +37,7 @@
 static int mnemonic_to_opcode(const char *mnemonic) {
   /* Table of mnemonics in opcode order (0–11) */
   static const char *mnemonics[] = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
-                                    "OR",  "JR",  "SAL", "SAR", "LW",   "SW"};
+                                    "OR",  "JR",  "SAL", "SAR", "LB",   "SB"};
   static const int num_mnemonics = 12;
 
   /* Case-insensitive comparison */
@@ -185,8 +184,8 @@ static int is_i_type(int opcode) {
   case OP_BEQZ:
   case OP_SAL:
   case OP_SAR:
-  case OP_LW:
-  case OP_SW:
+  case OP_LB:
+  case OP_SB:
     return 1;
   default:
     return 0;

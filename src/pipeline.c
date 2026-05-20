@@ -6,7 +6,7 @@
  *
  * Handles:
  *   - Normal instruction flow
- *   - Data hazards: forwarding (implicit via reverse order) + LW stalls
+ *   - Data hazards: forwarding (implicit via reverse order) + LB stalls
  *   - Control hazards: flush on taken BEQZ or JR
  *
  * Prints per-cycle:
@@ -25,6 +25,9 @@
 #include "../include/types.h"
 #include <stdio.h>
 #include <string.h>
+
+const char *OPCODE_NAMES[] = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
+                              "OR",  "JR",  "SAL", "SAR", "LB",   "SB"};
 
 /* ─── Pipeline Registers ────────────────────────────── */
 
@@ -126,19 +129,19 @@ static int stage_execute(void) {
     gpr_write(id_ex.r1, result);
     break;
 
-  /* ── Load Word: read data memory → register ── */
-  case OP_LW: {
-    uint16_t addr = (uint16_t)((int16_t)id_ex.r1_val + (int16_t)id_ex.imm);
+  /* ── Load Byte: read data memory → register ── */
+  case OP_LB: {
+    uint16_t addr = (uint16_t)((int16_t)id_ex.imm);
     int8_t loaded = data_mem_read(addr);
     gpr_write(id_ex.r1, loaded);
-    /* ALU call for flag purposes (LW doesn't update flags, but keeps it consistent) */
-    (void)alu_execute(OP_LW, id_ex.r1_val, id_ex.r2_val, id_ex.imm);
+    /* ALU call for flag purposes (LB doesn't update flags, but keeps it consistent) */
+    (void)alu_execute(OP_LB, id_ex.r1_val, id_ex.r2_val, id_ex.imm);
     break;
   }
 
-  /* ── Store Word: register → data memory ── */
-  case OP_SW: {
-    uint16_t addr = (uint16_t)((int16_t)id_ex.r1_val + (int16_t)id_ex.imm);
+  /* ── Store Byte: register → data memory ── */
+  case OP_SB: {
+    uint16_t addr = (uint16_t)((int16_t)id_ex.imm);
     data_mem_write(addr, id_ex.r1_val);
     break;
   }
@@ -285,16 +288,14 @@ void pipeline_run(void) {
         printf("    Output: R%d = %d (loaded immediate)\n", id_ex_snap.r1,
                gpr_read(id_ex_snap.r1));
         break;
-      case OP_LW: {
-        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.r1_val +
-                                   (int16_t)id_ex_snap.imm);
+      case OP_LB: {
+        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.imm);
         printf("    Output: R%d = DataMem[%d] = %d\n", id_ex_snap.r1, addr,
                gpr_read(id_ex_snap.r1));
         break;
       }
-      case OP_SW: {
-        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.r1_val +
-                                   (int16_t)id_ex_snap.imm);
+      case OP_SB: {
+        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.imm);
         printf("    Output: DataMem[%d] = %d\n", addr, id_ex_snap.r1_val);
         break;
       }

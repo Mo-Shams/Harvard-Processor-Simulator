@@ -99,9 +99,9 @@ export function alu_execute(opcode, r1_val, r2_val, imm) {
     case Opcode.SAR:
       result = (r1_signed >> imm);
       break;
-    case Opcode.LW:
-    case Opcode.SW:
-      result = (r1_signed + imm_signed);
+    case Opcode.LB:
+    case Opcode.SB:
+      result = imm_signed;
       break;
     default:
       result = 0;

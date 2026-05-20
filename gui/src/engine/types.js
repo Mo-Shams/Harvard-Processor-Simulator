@@ -20,8 +20,8 @@ export const Opcode = {
   JR: 7,
   SAL: 8,
   SAR: 9,
-  LW: 10,
-  SW: 11
+  LB: 10,
+  SB: 11
 };
 
 export const InstrFormat = {
@@ -31,5 +31,5 @@ export const InstrFormat = {
 
 export const OPCODE_NAMES = [
   "ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
-  "OR", "JR", "SAL", "SAR", "LW", "SW"
+  "OR", "JR", "SAL", "SAR", "LB", "SB"
 ];

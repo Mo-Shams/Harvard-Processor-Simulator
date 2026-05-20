@@ -35,7 +35,7 @@ DecodedInstr decode_instruction(uint16_t raw);
  * Determine the instruction format (R-type or I-type) from the opcode.
  *
  * R-type: ADD, SUB, MUL, AND, OR, JR  (opcodes 0,1,2,5,6,7)
- * I-type: LDI, BEQZ, SAL, SAR, LW, SW (opcodes 3,4,8,9,10,11)
+ * I-type: LDI, BEQZ, SAL, SAR, LB, SB (opcodes 3,4,8,9,10,11)
  */
 InstrFormat get_format(Opcode opcode);
 

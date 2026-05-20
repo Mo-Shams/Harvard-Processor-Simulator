@@ -13,8 +13,8 @@ export function get_format(opcode) {
     case Opcode.BEQZ:
     case Opcode.SAL:
     case Opcode.SAR:
-    case Opcode.LW:
-    case Opcode.SW:
+    case Opcode.LB:
+    case Opcode.SB:
       return InstrFormat.FMT_I_TYPE;
     default:
       return InstrFormat.FMT_R_TYPE;

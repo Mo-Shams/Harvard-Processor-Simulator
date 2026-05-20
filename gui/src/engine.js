@@ -5,8 +5,8 @@
 const INSTR_MEM_SIZE = 1024;
 const DATA_MEM_SIZE = 2048;
 const NUM_GPRS = 64;
-const OP = { ADD:0,SUB:1,MUL:2,LDI:3,BEQZ:4,AND:5,OR:6,JR:7,SAL:8,SAR:9,LW:10,SW:11 };
-const OP_NAMES = ["ADD","SUB","MUL","LDI","BEQZ","AND","OR","JR","SAL","SAR","LW","SW"];
+const OP = { ADD:0,SUB:1,MUL:2,LDI:3,BEQZ:4,AND:5,OR:6,JR:7,SAL:8,SAR:9,LB:10,SB:11 };
+const OP_NAMES = ["ADD","SUB","MUL","LDI","BEQZ","AND","OR","JR","SAL","SAR","LB","SB"];
 const R_TYPE_OPS = new Set([OP.ADD,OP.SUB,OP.MUL,OP.AND,OP.OR,OP.JR]);
 
 // --- State (single instances, mutated in place) ---
@@ -47,7 +47,7 @@ function alu(op,r1v,r2v,imm){
     case OP.OR:  res=a|b; break;
     case OP.SAL: res=a<<im; break;
     case OP.SAR: res=a>>im; break;
-    case OP.LW: case OP.SW: res=a+im; break;
+    case OP.LB: case OP.SB: res=im; break;
     default: res=0;
   }
   res = res<<24>>24;
@@ -124,18 +124,18 @@ class Pipeline {
           snap.EX={valid:true,pc:exSnap.pc,name:"LDI",d,r1v:exSnap.r1v,imm:exSnap.imm,
             out:`R${exSnap.r1} = ${res}`};
           break;}
-        case OP.LW:{
-          let addr=((exSnap.r1v<<24>>24)+(exSnap.imm<<24>>24))&0xFFFF;
+        case OP.LB:{
+          let addr=(exSnap.imm<<24>>24)&0xFFFF;
           if(addr>=DATA_MEM_SIZE) addr=0;
           let loaded=dmem[addr]; gprs[exSnap.r1]=loaded;
-          snap.EX={valid:true,pc:exSnap.pc,name:"LW",d,r1v:exSnap.r1v,imm:exSnap.imm,
+          snap.EX={valid:true,pc:exSnap.pc,name:"LB",d,r1v:exSnap.r1v,imm:exSnap.imm,
             out:`R${exSnap.r1} = Mem[${addr}] = ${loaded}`};
           break;}
-        case OP.SW:{
-          let addr=((exSnap.r1v<<24>>24)+(exSnap.imm<<24>>24))&0xFFFF;
+        case OP.SB:{
+          let addr=(exSnap.imm<<24>>24)&0xFFFF;
           if(addr>=DATA_MEM_SIZE) addr=0;
           dmem[addr]=exSnap.r1v;
-          snap.EX={valid:true,pc:exSnap.pc,name:"SW",d,r1v:exSnap.r1v,imm:exSnap.imm,
+          snap.EX={valid:true,pc:exSnap.pc,name:"SB",d,r1v:exSnap.r1v,imm:exSnap.imm,
             out:`Mem[${addr}] = ${exSnap.r1v}`};
           break;}
         case OP.BEQZ:{
@@ -164,13 +164,9 @@ class Pipeline {
     if(pc!==oldPc) snap.changes.pc={from:oldPc,to:pc,stage:'EX'};
 
     // === HAZARD ===
+    // No stalls needed: in this 3-stage pipeline, EX runs before ID
+    // (reverse order), so all forwarding is implicit — including LB.
     let stall=false;
-    if(!flush && exWasValid && exOp===OP.LW && this.if_id.valid){
-      let next=decode(this.if_id.instr);
-      let readsR1=next.op!==OP.LDI, readsR2=R_TYPE_OPS.has(next.op);
-      if((readsR1&&next.r1===exR1)||(readsR2&&next.r2===exR1)) stall=true;
-    }
-    if(stall) snap.hazard={type:'stall',reason:'load-use hazard'};
     if(flush) snap.hazard={type:'flush',reason:'branch/jump taken'};
 
     // === ID ===
