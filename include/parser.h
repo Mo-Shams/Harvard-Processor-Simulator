@@ -1,7 +1,7 @@
 /*
  * parser.h — Assembly file parser interface
  *
- * Reads assembly instructions from a text file (one per line),
+ * Reads assembly instructions from a text file or in-memory string,
  * encodes each into a 16-bit binary word, and stores them
  * sequentially in instruction memory starting at address 0.
  *
@@ -18,11 +18,20 @@
  *
  * Returns the number of instructions successfully parsed and loaded,
  * or -1 on error (file not found, malformed instruction, etc.).
- *
- * Example usage:
- *   int count = parser_load("programs/test1.txt");
- *   if (count < 0) { handle error }
  */
 int parser_load(const char *filepath);
+
+/*
+ * Parse assembly instructions directly from an in-memory null-terminated string.
+ *
+ * Returns the number of instructions successfully parsed and loaded,
+ * or -1 on error.
+ */
+int parser_load_string(const char *assembly_text);
+
+/*
+ * Control parser console output (1 = enabled, 0 = silent).
+ */
+void parser_set_verbose(int verbose);
 
 #endif /* PARSER_H */

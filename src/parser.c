@@ -192,115 +192,161 @@ static int is_i_type(int opcode) {
   }
 }
 
-/* ─── Main Parser Function ──────────────────────────── */
+static int parser_verbose = 1;
+
+void parser_set_verbose(int verbose) {
+  parser_verbose = verbose;
+}
+
+/* ─── Parse Single Line Helper ──────────────────────── */
+
+static int parse_single_line(char *raw_line, int line_num, int *address) {
+  char *trimmed = trim(raw_line);
+
+  /* Skip empty lines and comment lines (starting with # or ;) */
+  if (trimmed[0] == '\0' || trimmed[0] == '#' || trimmed[0] == ';') {
+    return 0;
+  }
+
+  /* Check instruction memory bounds */
+  if (*address >= INSTR_MEM_SIZE) {
+    if (parser_verbose)
+      fprintf(stderr, "ERROR: Too many instructions (max %d) at line %d\n",
+              INSTR_MEM_SIZE, line_num);
+    return -1;
+  }
+
+  /* Tokenize the line: MNEMONIC OPERAND1 OPERAND2 */
+  char *tokens[3] = {NULL, NULL, NULL};
+  int token_count = 0;
+
+  /* Make a working copy since strtok modifies the string */
+  char work[MAX_LINE_LEN];
+  strncpy(work, trimmed, MAX_LINE_LEN - 1);
+  work[MAX_LINE_LEN - 1] = '\0';
+
+  /* Tokenize by spaces, tabs, and commas */
+  char *tok = strtok(work, " \t,");
+  while (tok != NULL && token_count < 3) {
+    tokens[token_count++] = tok;
+    tok = strtok(NULL, " \t,");
+  }
+
+  /* Need at least mnemonic + 2 operands */
+  if (token_count < 3) {
+    if (parser_verbose)
+      fprintf(stderr, "ERROR: Malformed instruction at line %d: '%s'\n",
+              line_num, trimmed);
+    return -1;
+  }
+
+  /* Parse mnemonic → opcode */
+  int opcode = mnemonic_to_opcode(tokens[0]);
+  if (opcode < 0) {
+    if (parser_verbose)
+      fprintf(stderr, "ERROR: Unknown mnemonic '%s' at line %d\n", tokens[0],
+              line_num);
+    return -1;
+  }
+
+  /* Parse first operand: always a register (R1) */
+  int r1 = parse_register(tokens[1]);
+  if (r1 < 0) {
+    if (parser_verbose)
+      fprintf(stderr, "ERROR: Invalid register '%s' at line %d\n", tokens[1],
+              line_num);
+    return -1;
+  }
+
+  /* Parse second operand: register (R-type) or immediate (I-type) */
+  int r2_or_imm = 0;
+  int imm_flag = is_i_type(opcode);
+
+  if (imm_flag) {
+    /* I-Type: second operand is an immediate value */
+    if (parse_immediate(tokens[2], &r2_or_imm) < 0) {
+      if (parser_verbose)
+        fprintf(stderr, "ERROR: Invalid immediate '%s' at line %d\n", tokens[2],
+                line_num);
+      return -1;
+    }
+  } else {
+    /* R-Type: second operand is a register (R2) */
+    r2_or_imm = parse_register(tokens[2]);
+    if (r2_or_imm < 0) {
+      if (parser_verbose)
+        fprintf(stderr, "ERROR: Invalid register '%s' at line %d\n", tokens[2],
+                line_num);
+      return -1;
+    }
+  }
+
+  /* Encode into 16-bit binary and store in instruction memory */
+  uint16_t encoded = encode_instruction(opcode, r1, r2_or_imm, imm_flag);
+  instr_mem_write((uint16_t)(*address), encoded);
+  (*address)++;
+
+  return 0;
+}
+
+/* ─── Main Parser Functions ─────────────────────────── */
 
 int parser_load(const char *filepath) {
   FILE *file = fopen(filepath, "r");
   if (file == NULL) {
-    fprintf(stderr, "ERROR: Cannot open file '%s'\n", filepath);
+    if (parser_verbose)
+      fprintf(stderr, "ERROR: Cannot open file '%s'\n", filepath);
     return -1;
   }
 
   char line[MAX_LINE_LEN];
-  int address = 0;  /* Current instruction memory address */
-  int line_num = 0; /* Source file line number (for error messages) */
+  int address = 0;
+  int line_num = 0;
 
   while (fgets(line, sizeof(line), file) != NULL) {
     line_num++;
-
-    /* Trim whitespace */
-    char *trimmed = trim(line);
-
-    /* Skip empty lines and comment lines (starting with # or ;) */
-    if (trimmed[0] == '\0' || trimmed[0] == '#' || trimmed[0] == ';') {
-      continue;
-    }
-
-    /* Check instruction memory bounds */
-    if (address >= INSTR_MEM_SIZE) {
-      fprintf(stderr, "ERROR: Too many instructions (max %d) at line %d\n",
-              INSTR_MEM_SIZE, line_num);
+    if (parse_single_line(line, line_num, &address) < 0) {
       fclose(file);
       return -1;
     }
-
-    /* Tokenize the line: MNEMONIC OPERAND1 OPERAND2 */
-    char *tokens[3] = {NULL, NULL, NULL};
-    int token_count = 0;
-
-    /* Make a working copy since strtok modifies the string */
-    char work[MAX_LINE_LEN];
-    strncpy(work, trimmed, MAX_LINE_LEN - 1);
-    work[MAX_LINE_LEN - 1] = '\0';
-
-    /* Tokenize by spaces, tabs, and commas */
-    char *tok = strtok(work, " \t,");
-    while (tok != NULL && token_count < 3) {
-      tokens[token_count++] = tok;
-      tok = strtok(NULL, " \t,");
-    }
-
-    /* Need at least mnemonic + 2 operands */
-    if (token_count < 3) {
-      fprintf(stderr, "ERROR: Malformed instruction at line %d: '%s'\n",
-              line_num, trimmed);
-      fclose(file);
-      return -1;
-    }
-
-    /* Parse mnemonic → opcode */
-    int opcode = mnemonic_to_opcode(tokens[0]);
-    if (opcode < 0) {
-      fprintf(stderr, "ERROR: Unknown mnemonic '%s' at line %d\n", tokens[0],
-              line_num);
-      fclose(file);
-      return -1;
-    }
-
-    /* Parse first operand: always a register (R1) */
-    int r1 = parse_register(tokens[1]);
-    if (r1 < 0) {
-      fprintf(stderr, "ERROR: Invalid register '%s' at line %d\n", tokens[1],
-              line_num);
-      fclose(file);
-      return -1;
-    }
-
-    /* Parse second operand: register (R-type) or immediate (I-type) */
-    int r2_or_imm = 0;
-    int imm_flag = is_i_type(opcode);
-
-    if (imm_flag) {
-      /* I-Type: second operand is an immediate value */
-      if (parse_immediate(tokens[2], &r2_or_imm) < 0) {
-        fprintf(stderr, "ERROR: Invalid immediate '%s' at line %d\n", tokens[2],
-                line_num);
-        fclose(file);
-        return -1;
-      }
-    } else {
-      /* R-Type: second operand is a register (R2) */
-      r2_or_imm = parse_register(tokens[2]);
-      if (r2_or_imm < 0) {
-        fprintf(stderr, "ERROR: Invalid register '%s' at line %d\n", tokens[2],
-                line_num);
-        fclose(file);
-        return -1;
-      }
-    }
-
-    /* Encode into 16-bit binary and store in instruction memory */
-    uint16_t encoded = encode_instruction(opcode, r1, r2_or_imm, imm_flag);
-    instr_mem_write((uint16_t)address, encoded);
-
-    address++;
   }
 
   fclose(file);
-
-  /* Record how many instructions were loaded */
   instr_mem_set_count(address);
 
-  printf("Parser: loaded %d instruction(s) from '%s'\n", address, filepath);
+  if (parser_verbose)
+    printf("Parser: loaded %d instruction(s) from '%s'\n", address, filepath);
+  return address;
+}
+
+int parser_load_string(const char *assembly_text) {
+  if (assembly_text == NULL)
+    return -1;
+
+  int address = 0;
+  int line_num = 0;
+  const char *p = assembly_text;
+
+  while (*p != '\0') {
+    line_num++;
+    char line[MAX_LINE_LEN];
+    size_t len = 0;
+
+    while (*p != '\0' && *p != '\n' && len < sizeof(line) - 1) {
+      line[len++] = *p++;
+    }
+    line[len] = '\0';
+
+    if (*p == '\n')
+      p++;
+
+    if (parse_single_line(line, line_num, &address) < 0) {
+      return -1;
+    }
+  }
+
+  instr_mem_set_count(address);
+  if (parser_verbose)
+    printf("Parser: loaded %d instruction(s) from memory buffer\n", address);
   return address;
 }

@@ -33,10 +33,7 @@ static void update_flags(Opcode opcode, int8_t r1_val, int8_t r2_val,
     sreg_set_flag(SREG_C_BIT, C);
 
     /* V (Overflow): same-sign operands produce opposite-sign result */
-    V = ((r1_val > 0 && r2_val > 0 && result < 0) ||
-         (r1_val < 0 && r2_val < 0 && result > 0))
-            ? 1
-            : 0;
+    V = (((r1_val ^ result) & (r2_val ^ result) & 0x80) != 0) ? 1 : 0;
     sreg_set_flag(SREG_V_BIT, V);
 
     /* N (Negative): MSB of result */
@@ -54,10 +51,7 @@ static void update_flags(Opcode opcode, int8_t r1_val, int8_t r2_val,
 
   case OP_SUB:
     /* V (Overflow): different-sign operands, result sign matches subtrahend */
-    V = ((r1_val >= 0 && r2_val < 0 && result < 0) ||
-         (r1_val < 0 && r2_val >= 0 && result > 0))
-            ? 1
-            : 0;
+    V = (((r1_val ^ r2_val) & (r1_val ^ result) & 0x80) != 0) ? 1 : 0;
     sreg_set_flag(SREG_V_BIT, V);
 
     /* N (Negative) */

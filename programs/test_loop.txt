@@ -1,0 +1,10 @@
+# Countdown loop: sums numbers 4 down to 1 into R2
+# Expected: R1=0, R2=10, R4=20
+LDI R1 4
+LDI R2 0
+LDI R3 1
+ADD R2 R1
+SUB R1 R3
+BEQZ R1 1
+BEQZ R0 -4
+LDI R4 20

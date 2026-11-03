@@ -96,6 +96,7 @@ class Pipeline {
     this.if_id={valid:false,pc:0,instr:0};
     this.id_ex={valid:false,pc:0,op:0,r1:0,r2:0,r1v:0,r2v:0,imm:0};
     this.cycle=0; this.fetchDone=false; this.done=false; this.history=[];
+    this.retired=0; this.stalls=0; this.flushes=0;
   }
   
   step(){
@@ -110,6 +111,7 @@ class Pipeline {
     // === EX ===
     let flush=false;
     if(exSnap.valid){
+      this.retired++;
       let d=decode(imem[exSnap.pc]);
       switch(exSnap.op){
         case OP.ADD:case OP.SUB:case OP.MUL:case OP.AND:case OP.OR:case OP.SAL:case OP.SAR:{
@@ -168,6 +170,14 @@ class Pipeline {
     // (reverse order), so all forwarding is implicit — including LB.
     let stall=false;
     if(flush) snap.hazard={type:'flush',reason:'branch/jump taken'};
+    if(flush) this.flushes++;
+    const writesResult = exWasValid &&
+      [OP.ADD,OP.SUB,OP.MUL,OP.LDI,OP.AND,OP.OR,OP.SAL,OP.SAR,OP.LB].includes(exOp);
+    const nextDecode = ifSnap.valid ? decode(ifSnap.instr) : null;
+    const readsResult = nextDecode &&
+      (nextDecode.r1===exR1 || (nextDecode.fmt==='R' && nextDecode.r2===exR1));
+    const forwarded = !flush && writesResult && readsResult;
+    if (forwarded) snap.hazard={type:'forward',reason:`EX → ID: R${exR1}`};
 
     // === ID ===
     if(flush){
@@ -179,7 +189,7 @@ class Pipeline {
     } else if(ifSnap.valid){
       let d=decode(ifSnap.instr);
       this.id_ex={valid:true,pc:ifSnap.pc,op:d.op,r1:d.r1,r2:d.r2,r1v:gprs[d.r1],r2v:gprs[d.r2],imm:d.imm};
-      snap.ID={valid:true,pc:ifSnap.pc,status:'OK',d,r1v:this.id_ex.r1v,r2v:this.id_ex.r2v};
+      snap.ID={valid:true,pc:ifSnap.pc,status:forwarded?'FORWARDED':'OK',d,r1v:this.id_ex.r1v,r2v:this.id_ex.r2v};
     } else {
       this.id_ex.valid=false; snap.ID={valid:false};
     }
@@ -202,6 +212,9 @@ class Pipeline {
 
     if(!this.if_id.valid && !this.id_ex.valid && this.fetchDone) this.done=true;
     snap.done=this.done;
+    snap.metrics={cycles:this.cycle, retired:this.retired,
+      cpi:this.retired ? this.cycle/this.retired : 0,
+      stalls:this.stalls, flushes:this.flushes};
     this.history.push(snap);
     return snap;
   }

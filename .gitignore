@@ -1,6 +1,8 @@
-# Compiled output
+# Compiled binaries
 obj/
 simulator
+simulator.exe
+tests/test_runner
 
 # OS clutter
 .DS_Store

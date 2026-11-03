@@ -33,6 +33,11 @@ const char *OPCODE_NAMES[] = {"ADD", "SUB", "MUL", "LDI", "BEQZ", "AND",
 
 static IF_ID_Reg if_id;
 static ID_EX_Reg id_ex;
+static int verbose_mode = 1;
+
+void pipeline_set_verbose(int verbose) {
+  verbose_mode = verbose;
+}
 
 /* ─── Snapshot arrays for tracking register/memory changes ─── */
 
@@ -40,6 +45,7 @@ static int8_t   gpr_snapshot[NUM_GPRS];
 static int8_t   dmem_snapshot[DATA_MEM_SIZE];
 static uint8_t  sreg_snapshot;
 static uint16_t pc_snapshot;
+static PipelineMetrics metrics;
 
 /*
  * Take a snapshot of all registers and data memory
@@ -60,6 +66,9 @@ static void take_snapshot(void) {
  * Print any register/memory changes that occurred since the snapshot.
  */
 static void print_changes(const char *stage_name) {
+  if (!verbose_mode)
+    return;
+
   const int8_t *gprs = gpr_get_array();
   const int8_t *dmem = data_mem_get_array();
 
@@ -217,6 +226,8 @@ static int stage_fetch(void) {
 /* ─── Print helpers for instruction display ─────────── */
 
 static void print_instr_name(uint16_t raw) {
+  if (!verbose_mode)
+    return;
   DecodedInstr d = decode_instruction(raw);
   printf("%s R%d ", OPCODE_NAMES[d.opcode], d.r1);
   if (d.format == FMT_R_TYPE)
@@ -227,6 +238,8 @@ static void print_instr_name(uint16_t raw) {
 
 /* ─── Main Pipeline Loop ────────────────────────────── */
 
+#define PPRINT(...) do { if (verbose_mode) printf(__VA_ARGS__); } while (0)
+
 void pipeline_run(void) {
   /* Initialize pipeline registers to empty */
   if_id.valid = 0;
@@ -234,11 +247,12 @@ void pipeline_run(void) {
 
   int cycle = 1;
   int fetching_done = 0;
+  metrics = (PipelineMetrics){0, 0, 0, 0};
 
-  printf("\n==================== PIPELINE SIMULATION ====================\n");
+  PPRINT("\n==================== PIPELINE SIMULATION ====================\n");
 
   while (1) {
-    printf("\n================ Cycle %d ================\n", cycle);
+    PPRINT("\n================ Cycle %d ================\n", cycle);
 
     /* Save snapshots of pipeline registers for printing (before they change) */
     IF_ID_Reg if_id_snap = if_id;
@@ -254,23 +268,27 @@ void pipeline_run(void) {
      * ═══════════════════════════════════════════════════════════════ */
     take_snapshot();
     int flush = stage_execute();
+    if (id_ex.valid)
+      metrics.retired_instructions++;
+    if (flush)
+      metrics.branch_flushes++;
 
     /* Print EX stage info */
-    printf("\n  [EX Stage]\n");
+    PPRINT("\n  [EX Stage]\n");
     if (id_ex_snap.valid) {
-      printf("    Instruction: [PC=%d] ", id_ex_snap.pc);
+      PPRINT("    Instruction: [PC=%d] ", id_ex_snap.pc);
       print_instr_name(instr_mem_read(id_ex_snap.pc));
-      printf("\n");
+      PPRINT("\n");
 
       /* Print input values */
       DecodedInstr d_ex = decode_instruction(instr_mem_read(id_ex_snap.pc));
-      printf("    Inputs: R%d_val=%d", d_ex.r1, id_ex_snap.r1_val);
+      PPRINT("    Inputs: R%d_val=%d", d_ex.r1, id_ex_snap.r1_val);
       if (d_ex.format == FMT_R_TYPE) {
-        printf(", R%d_val=%d", d_ex.r2, id_ex_snap.r2_val);
+        PPRINT(", R%d_val=%d", d_ex.r2, id_ex_snap.r2_val);
       } else {
-        printf(", IMM=%d", id_ex_snap.imm);
+        PPRINT(", IMM=%d", id_ex_snap.imm);
       }
-      printf("\n");
+      PPRINT("\n");
 
       /* Print output / action */
       switch (id_ex_snap.opcode) {
@@ -281,39 +299,39 @@ void pipeline_run(void) {
       case OP_OR:
       case OP_SAL:
       case OP_SAR:
-        printf("    Output: R%d = %d\n", id_ex_snap.r1,
+        PPRINT("    Output: R%d = %d\n", id_ex_snap.r1,
                gpr_read(id_ex_snap.r1));
         break;
       case OP_LDI:
-        printf("    Output: R%d = %d (loaded immediate)\n", id_ex_snap.r1,
+        PPRINT("    Output: R%d = %d (loaded immediate)\n", id_ex_snap.r1,
                gpr_read(id_ex_snap.r1));
         break;
       case OP_LB: {
-        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.imm);
-        printf("    Output: R%d = DataMem[%d] = %d\n", id_ex_snap.r1, addr,
+        uint16_t addr = (uint16_t)((uint8_t)id_ex_snap.imm & 0x3F);
+        PPRINT("    Output: R%d = DataMem[%d] = %d\n", id_ex_snap.r1, addr,
                gpr_read(id_ex_snap.r1));
         break;
       }
       case OP_SB: {
-        uint16_t addr = (uint16_t)((int16_t)id_ex_snap.imm);
-        printf("    Output: DataMem[%d] = %d\n", addr, id_ex_snap.r1_val);
+        uint16_t addr = (uint16_t)((uint8_t)id_ex_snap.imm & 0x3F);
+        PPRINT("    Output: DataMem[%d] = %d\n", addr, id_ex_snap.r1_val);
         break;
       }
       case OP_BEQZ:
         if (flush) {
           uint16_t target =
               (uint16_t)(id_ex_snap.pc + 1 + id_ex_snap.imm);
-          printf("    Output: Branch TAKEN → PC = %d + 1 + %d = %d\n",
+          PPRINT("    Output: Branch TAKEN → PC = %d + 1 + %d = %d\n",
                  id_ex_snap.pc, id_ex_snap.imm, target);
         } else {
-          printf("    Output: Branch NOT taken (R%d = %d != 0)\n",
+          PPRINT("    Output: Branch NOT taken (R%d = %d != 0)\n",
                  id_ex_snap.r1, id_ex_snap.r1_val);
         }
         break;
       case OP_JR: {
         uint16_t target = (uint16_t)(((uint8_t)id_ex_snap.r1_val << 8) |
                                      ((uint8_t)id_ex_snap.r2_val));
-        printf("    Output: Jump to PC = R%d||R%d = %d\n", id_ex_snap.r1,
+        PPRINT("    Output: Jump to PC = R%d||R%d = %d\n", id_ex_snap.r1,
                id_ex_snap.r2, target);
         break;
       }
@@ -324,7 +342,7 @@ void pipeline_run(void) {
       /* Print register/memory changes from EX */
       print_changes("EX");
     } else {
-      printf("    [bubble]\n");
+      PPRINT("    [bubble]\n");
     }
 
     /* Update snapshot after EX changes */
@@ -337,44 +355,46 @@ void pipeline_run(void) {
     if (!flush) {
       stall = hazard_check_stall(ex_was_valid, ex_opcode, ex_r1, &if_id);
     }
+    if (stall)
+      metrics.data_hazard_stalls++;
 
     /* ═══════════════════════════════════════════════════════════════
      * STAGE 2: DECODE (ID)
      * ═══════════════════════════════════════════════════════════════ */
-    printf("\n  [ID Stage]\n");
+    PPRINT("\n  [ID Stage]\n");
     if (flush) {
       id_ex.valid = 0; /* flush: discard the instruction in ID */
       if (if_id_snap.valid) {
-        printf("    Instruction: [PC=%d] ", if_id_snap.pc);
+        PPRINT("    Instruction: [PC=%d] ", if_id_snap.pc);
         print_instr_name(if_id_snap.instruction);
-        printf(" → FLUSHED\n");
+        PPRINT(" → FLUSHED\n");
       } else {
-        printf("    [bubble]\n");
+        PPRINT("    [bubble]\n");
       }
     } else if (stall) {
       id_ex.valid = 0; /* stall: insert bubble, keep if_id for next cycle */
-      printf("    Instruction: [PC=%d] ", if_id_snap.pc);
+      PPRINT("    Instruction: [PC=%d] ", if_id_snap.pc);
       print_instr_name(if_id_snap.instruction);
-      printf(" → STALLED (load-use hazard)\n");
+      PPRINT(" → STALLED (load-use hazard)\n");
     } else {
       if (if_id_snap.valid) {
         stage_decode();
-        printf("    Instruction: [PC=%d] ", if_id_snap.pc);
+        PPRINT("    Instruction: [PC=%d] ", if_id_snap.pc);
         print_instr_name(if_id_snap.instruction);
-        printf("\n");
+        PPRINT("\n");
         /* Print decoded values (outputs of decode stage) */
-        printf("    Decoded: opcode=%s, R1=R%d(val=%d)",
+        PPRINT("    Decoded: opcode=%s, R1=R%d(val=%d)",
                OPCODE_NAMES[id_ex.opcode], id_ex.r1, id_ex.r1_val);
         DecodedInstr d_id = decode_instruction(if_id_snap.instruction);
         if (d_id.format == FMT_R_TYPE) {
-          printf(", R2=R%d(val=%d)", id_ex.r2, id_ex.r2_val);
+          PPRINT(", R2=R%d(val=%d)", id_ex.r2, id_ex.r2_val);
         } else {
-          printf(", IMM=%d", id_ex.imm);
+          PPRINT(", IMM=%d", id_ex.imm);
         }
-        printf("\n");
+        PPRINT("\n");
       } else {
         id_ex.valid = 0;
-        printf("    [bubble]\n");
+        PPRINT("    [bubble]\n");
       }
     }
 
@@ -384,25 +404,25 @@ void pipeline_run(void) {
     /* ═══════════════════════════════════════════════════════════════
      * STAGE 3: FETCH (IF)
      * ═══════════════════════════════════════════════════════════════ */
-    printf("\n  [IF Stage]\n");
+    PPRINT("\n  [IF Stage]\n");
     if (flush) {
       if_id.valid = 0; /* flush: discard, PC already set to target */
       fetching_done = 0; /* target might be valid, re-check next cycle */
-      printf("    → FLUSHED (branch/jump taken)\n");
+      PPRINT("    → FLUSHED (branch/jump taken)\n");
     } else if (stall) {
       /* Don't fetch — keep if_id and PC unchanged */
-      printf("    Instruction: [PC=%d] ", if_id.pc);
+      PPRINT("    Instruction: [PC=%d] ", if_id.pc);
       print_instr_name(if_id.instruction);
-      printf(" → STALLED (waiting)\n");
+      PPRINT(" → STALLED (waiting)\n");
     } else {
       int done = stage_fetch();
       if (done) {
         fetching_done = 1;
-        printf("    [no more instructions to fetch]\n");
+        PPRINT("    [no more instructions to fetch]\n");
       } else {
-        printf("    Fetched: [PC=%d] ", if_id.pc);
+        PPRINT("    Fetched: [PC=%d] ", if_id.pc);
         print_instr_name(if_id.instruction);
-        printf(" (raw=0x%04X)\n", if_id.instruction);
+        PPRINT(" (raw=0x%04X)\n", if_id.instruction);
         /* Print PC change from fetch */
         print_changes("IF");
       }
@@ -418,6 +438,15 @@ void pipeline_run(void) {
       break;
   }
 
-  printf("\n================ Pipeline complete: %d cycles ================\n",
+  PPRINT("\n================ Pipeline complete: %d cycles ================\n",
          cycle - 1);
+  metrics.total_cycles = cycle - 1;
+  PPRINT("Metrics: cycles=%d retired=%d CPI=%.2f stalls=%d flushes=%d\n",
+         metrics.total_cycles, metrics.retired_instructions,
+         metrics.retired_instructions
+             ? (double)metrics.total_cycles / metrics.retired_instructions
+             : 0.0,
+         metrics.data_hazard_stalls, metrics.branch_flushes);
 }
+
+PipelineMetrics pipeline_get_metrics(void) { return metrics; }

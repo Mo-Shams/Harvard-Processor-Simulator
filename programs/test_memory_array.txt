@@ -1,0 +1,14 @@
+# Memory array: stores 10, 20, 30 into DataMem[0..2], then loads and sums them into R10
+# Expected: DataMem[0]=10, DataMem[1]=20, DataMem[2]=30, R10=60
+LDI R1 10
+SB R1 0
+LDI R1 20
+SB R1 1
+LDI R1 30
+SB R1 2
+LB R10 0
+LB R11 1
+LB R12 2
+ADD R10 R11
+ADD R10 R12
+

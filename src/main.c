@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "../include/types.h"
 #include "../include/memory.h"
 #include "../include/registers.h"
@@ -17,7 +18,14 @@
 int main(int argc, char *argv[]) {
     /* Check command-line arguments */
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <assembly_file.txt>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <assembly_file.txt> [--json <output.json>]\n", argv[0]);
+        return 1;
+    }
+    const char *json_path = NULL;
+    if (argc == 4 && strcmp(argv[2], "--json") == 0)
+        json_path = argv[3];
+    else if (argc != 2) {
+        fprintf(stderr, "Usage: %s <assembly_file.txt> [--json <output.json>]\n", argv[0]);
         return 1;
     }
 
@@ -55,6 +63,31 @@ int main(int argc, char *argv[]) {
     
     /* Print the final state */
     printer_final();
+
+    if (json_path != NULL) {
+        PipelineMetrics m = pipeline_get_metrics();
+        FILE *json = fopen(json_path, "w");
+        if (json == NULL) {
+            fprintf(stderr, "Failed to write metrics JSON '%s'.\n", json_path);
+            return 1;
+        }
+        fprintf(json,
+                "{\n  \"cycles\": %d,\n  \"retiredInstructions\": %d,\n"
+                "  \"cpi\": %.4f,\n  \"dataHazardStalls\": %d,\n"
+                "  \"branchFlushes\": %d,\n  \"pc\": %u,\n  \"sreg\": %u,\n"
+                "  \"registers\": [",
+                m.total_cycles, m.retired_instructions,
+                m.retired_instructions
+                    ? (double)m.total_cycles / m.retired_instructions
+                    : 0.0,
+                m.data_hazard_stalls, m.branch_flushes, pc_read(), sreg_read());
+        const int8_t *gprs = gpr_get_array();
+        for (int i = 0; i < NUM_GPRS; i++)
+            fprintf(json, "%s%d", i ? ", " : "", gprs[i]);
+        fprintf(json, "]}\n");
+        fclose(json);
+        printf("Metrics exported to %s\n", json_path);
+    }
 
     return 0;
 }

@@ -1,0 +1,9 @@
+# RAW dependency chain: 5 back-to-back dependent arithmetic instructions
+# Expected: R1 doubles each time: 2 -> 4 -> 8 -> 16 -> 32 -> 64
+LDI R1 2
+ADD R1 R1
+ADD R1 R1
+ADD R1 R1
+ADD R1 R1
+ADD R1 R1
+

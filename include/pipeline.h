@@ -14,6 +14,15 @@
  * Simulates cycles until the pipeline is fully drained
  * and no more instructions remain to fetch.
  */
+typedef struct {
+  int total_cycles;
+  int retired_instructions;
+  int data_hazard_stalls;
+  int branch_flushes;
+} PipelineMetrics;
+
 void pipeline_run(void);
+PipelineMetrics pipeline_get_metrics(void);
+void pipeline_set_verbose(int verbose);
 
 #endif /* PIPELINE_H */

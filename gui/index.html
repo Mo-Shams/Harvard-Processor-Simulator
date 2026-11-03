@@ -36,20 +36,45 @@
     <div class="main">
       <!-- CODE EDITOR -->
       <section class="panel code-panel">
-        <div class="phead"><h2>Assembly Code</h2><button id="btn-assemble" class="tbtn primary small">Parse & Load</button></div>
+        <div class="phead">
+          <h2>Assembly Code</h2>
+          <button id="btn-assemble" class="tbtn primary small">Parse & Load</button>
+        </div>
+        <div class="selector-wrap">
+          <select id="program-select" class="program-select" title="Load sample program">
+            <option value="test_comprehensive">Preset: Comprehensive Test</option>
+            <option value="test1">Preset: Basic ALU & Memory</option>
+            <option value="test_hazard_flush">Preset: Control Hazard Flush</option>
+            <option value="test_jr">Preset: Jump Register (JR)</option>
+            <option value="test_loop">Preset: Countdown Loop</option>
+            <option value="test_memory_array">Preset: Memory Array Sum</option>
+          </select>
+        </div>
         <div class="editor-wrap">
           <div class="line-numbers" id="line-numbers">1</div>
-          <textarea id="code-editor" spellcheck="false">LDI R1 5
+          <textarea id="code-editor" spellcheck="false">LDI R1 10
 LDI R2 3
-ADD R1 R2
-SUB R1 R2
-MUL R1 R2
-AND R1 R2
-OR R1 R2
-SAL R1 2
-SAR R1 1
-SB R1 0
-LB R3 0</textarea>
+LDI R3 10
+ADD R3 R2
+LDI R4 10
+SUB R4 R2
+LDI R5 10
+MUL R5 R2
+LDI R6 10
+AND R6 R2
+LDI R7 10
+OR R7 R2
+LDI R8 10
+SAL R8 2
+LDI R9 10
+SAR R9 1
+SB R5 5
+LB R11 5
+BEQZ R10 1
+LDI R12 1
+LDI R10 0
+BEQZ R1 1
+LDI R20 7</textarea>
         </div>
         <div id="parse-errors" class="err-box hidden"></div>
       </section>
@@ -77,6 +102,19 @@ LB R3 0</textarea>
           <h3>Console Output</h3>
           <div class="console-log" id="console-log"><div class="log-line muted">Ready.</div></div>
         </div>
+      </section>
+
+      <section class="panel metrics-panel">
+        <div class="phead"><h2>Performance</h2><span class="source-badge">C model</span></div>
+        <div class="metrics-grid">
+          <div class="metric"><span>Cycles</span><strong id="metric-cycles">0</strong></div>
+          <div class="metric"><span>Retired</span><strong id="metric-retired">0</strong></div>
+          <div class="metric"><span>CPI</span><strong id="metric-cpi">—</strong></div>
+          <div class="metric"><span>Stalls</span><strong id="metric-stalls">0</strong></div>
+          <div class="metric"><span>Flushes</span><strong id="metric-flushes">0</strong></div>
+        </div>
+        <h3 class="timing-title">Instruction timing</h3>
+        <div id="timing-diagram" class="timing-diagram"><span class="muted">Parse a program to see timing.</span></div>
       </section>
 
       <!-- STATE -->
